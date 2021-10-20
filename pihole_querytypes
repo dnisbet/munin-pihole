@@ -1,0 +1,48 @@
+#!/bin/sh
+
+envhost=${host:-127.0.0.1}
+envport=${port:-80}
+envkey=${key:-???}
+envapi=${api:-/admin/api.php}
+apicall=$(curl -s "$envhost:$envport$envapi?getQueryTypes&auth=${envkey}" 2>/dev/null)
+stats=$(echo $apicall | jq -r --indent 1 '.querytypes' | sed '1d' | sed '$ d' | sed -r 's/^.{1}//' | sed 's/ //g' | sed 's/[{}"]//g')
+
+case $1 in
+  config)
+    echo "graph_title Pi-hole Query Types"
+    echo "graph_vlabel %"
+    echo "graph_category pihole"
+    echo "graph_info This graph shows statistics on query types seen by Pi-hole."
+    echo "graph_args --base 1000 -r --lower-limit 0 --upper-limit 100"
+    echo 'graph_scale no'
+
+#    echo "graph_args --upper-limit 100"
+#    echo "graph_order A(IPv4) AAAA(IPv6) ANY SRV SOA PTR TXT NAPTR NX DS RRSIG DNSKEY NS OTHER SVCB HTTPS"
+    for stat in $stats
+    do
+#	echo $stat
+        uid=$(echo $stat | sed 's/:.*//')
+        if [ $uid = "AAAA(IPv6)" ] || [ $uid = "ANY" ] || [ $uid = "SRV" ] || [ $uid = "SOA" ] || [ $uid = "PTR" ] || [ $uid = "TXT" ] || [ $uid = "NAPTR" ] || [ $uid = "MX" ] || [ $uid = "DS" ] || [ $uid = "RRSIG" ] || [ $uid = "DNSKEY" ] || [ $uid = "NS" ] || [ $uid = "OTHER" ] || [ $uid = "SVCB" ] || [ $uid = "HTTPS" ]; then
+            echo "$uid.label $uid"
+            echo "$uid.min 0"
+	    echo "$uid.type GAUGE"
+	    echo "$uid.draw STACK"
+	fi
+	if [ $uid = "A(IPv4)" ]; then
+            echo "$uid.label $uid"
+            echo "$uid.min 0"
+            echo "$uid.type GAUGE"
+            echo "$uid.draw AREA"
+	fi
+    done
+  exit 0;;
+esac
+
+for stat in $stats
+do
+    uid=$(echo $stat | sed 's/:.*//')
+    if [ $uid = "AAAA(IPv6)" ] || [ $uid = "A(IPv4)" ] || [ $uid = "ANY" ] || [ $uid = "SRV" ] || [ $uid = "SOA" ] || [ $uid = "PTR" ] || [ $uid = "TXT" ] || [ $uid = "NAPTR" ] || [ $uid = "MX" ] || [ $uid = "DS" ] || [ $uid = "RRSIG" ] || [ $uid = "DNSKEY" ] || [ $uid = "NS" ] || [ $uid = "OTHER" ] || [ $uid = "SVCB" ] || [ $uid = "HTTPS" ]; then
+        value=$(echo $stat | sed 's/.*://' | sed 's/,//')
+        echo "$uid.value $value"
+    fi
+done
